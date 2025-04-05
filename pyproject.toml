@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "magtomo"
+version = "0.1.0"
+license = "BSD-3-Clause"
+authors = [
+  { name="Andreas Apseros"},
+]
+description = "------------"
+readme = "README.rst"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy","pyevtk", "matplotlib", "pillow", "scipy", "ThreeDViewer", "magpack"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/apseros/magpack"
+Issues = "https://github.com/apseros/magpack/issues"

@@ -1,0 +1,6 @@
+numpy>=1.25.2
+scipy>=1.13.1
+numpydoc>=1.8.0
+pydata-sphinx-theme>=0.16.1
+magpack>=0.2.1
+ThreeDViewer>=0.2.1
