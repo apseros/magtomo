@@ -39,4 +39,4 @@ the projections are then used as input for the reconstruction process
 
 Documentation
 -------------
-Comprehensive documentation is available online at `readthedocs <https://magtomo.readthedocs.io/en/latest/index.html>`_.
+Comprehensive documentation is available online at `readthedocs <https://magtomo.readthedocs.io/en/latest>`_.
