@@ -55,10 +55,12 @@ class Experiment:
 
     @magnetization.setter
     def magnetization(self, value: np.ndarray):
-        if value.ndim != 4:
-            logging.warning('Magnetization array should be 4-dimensional with shape (3, nx, ny, nz).')
+        if value.ndim > 5:
+            logging.warning('Magnetization array should be 4-dimensional with shape (3, nx, ny, nz) or 5 dimensional'
+                            'with shape (3, 3, nx, ny, nz.')
         if value.shape[0] != 3:
-            logging.warning('Three magnetization components should be specified.')
+            logging.warning('Magnetization should have three components.')
+
         self._magnetization = value
 
     @property
@@ -94,7 +96,15 @@ class Experiment:
         if isinstance(self._pol, (int, float, complex)):
             self._pol = np.repeat(self._pol, self._rotations.shape[0])
 
-        partial_projection = functools.partial(projection, self._magnetization, order=self._order)
+        if np.all(self._pol.imag == 0):
+            proj_method = tensor_projection
+            if self.magnetization.shape[:2] != (3, 3):
+                tensor_mag = np.einsum('iabc,jabc->ijabc', self._magnetization, self._magnetization)
+                self.magnetization = tensor_mag
+        else:
+            proj_method = projection
+
+        partial_projection = functools.partial(proj_method, self._magnetization, order=self._order)
         with multiprocessing.Pool() as p:
             proj = p.starmap(partial_projection, zip(self._rotations, self._pol))
         self._sinogram = np.asarray(proj)
@@ -102,6 +112,25 @@ class Experiment:
     def plot_sinogram(self, cmap='Spectral'):
         """Plots the calculated sinogram."""
         plot_3d(self._sinogram, init_take=0, cmap=cmap, axes_names=(r"$\theta$", "x", "y"), title="Sinogram")
+
+
+def tensor_projection(tensor_field, rot_matrix, pol=0, order=1):
+    """Calculation of a single projection using tensor notation
+
+    :param tensor_field:
+    :param rot_matrix:
+    :param pol:
+    :param order:
+    :return:
+    """
+    field_copy = np.copy(tensor_field)
+
+    electric_field = (np.cos(np.deg2rad(pol)), np.sin(np.deg2rad(pol)), 0)
+    proj = np.einsum('i,ij,jlabc,kl,k->abc',electric_field, rot_matrix, field_copy, rot_matrix,
+                     electric_field)
+
+    proj = rotate_scalar_field(proj, rot_matrix, order=order)
+    return np.sum(proj, axis=2)
 
 
 def projection(field, rot_matrix, pol=0, order = 1):

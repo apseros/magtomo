@@ -191,7 +191,15 @@ class Reconstruction(Experiment):
             logging.info(f"Error metric: {current_error}")
 
             # evaluate gradients
-            partial_gradient = functools.partial(gradient, self._magnetization, order=self._order)
+            if np.all(self._pol.imag == 0):
+                grad_method = tensor_gradient
+                if self.magnetization.shape[:2] != (3, 3):
+                    tensor_mag = np.einsum('iabc,jabc->ijabc', self._magnetization, self._magnetization)
+                    self.magnetization = tensor_mag
+            else:
+                grad_method = gradient
+
+            partial_gradient = functools.partial(grad_method, self._magnetization, order=self._order)
             with multiprocessing.Pool() as p:
                 grad = p.starmap(partial_gradient, zip(self._rotations, difference, self._pol))
 
@@ -208,6 +216,36 @@ class Reconstruction(Experiment):
         elif isinstance(self._pol, np.ndarray) and self._pol.shape[0] != self._rotations.shape[0]:
             raise ValueError("Number of polarisations must match number of rotations.")
         self.magnetization = self._magnetization * self._mask
+
+
+def tensor_gradient(tf, rot, difference, pol, order):
+    """Calculates the gradient for a specific orientation.
+
+    Parameters
+    ----------
+    tf : np.ndarray
+        The current guess for the tensor field.
+    rot : np.ndarray
+        The rotation matrix describing the sample rotation
+    difference : np.ndarray
+        The difference between the projection from `vf` and the input.
+    pol : np.ndarray
+        The polarisation at which the projection was measured.
+    order : int
+        The interpolation order for performing rotations.
+
+    Returns
+    -------
+    np.ndarray
+        The gradient for this combination of inputs.
+    """
+    difference_field = difference[..., np.newaxis].repeat(tf.shape[-1], axis=-1) / tf.shape[-1]
+    difference_field = rotate(difference_field, rot, order)
+
+    electric_field = (np.cos(np.deg2rad(pol)), np.sin(np.deg2rad(pol)), 0)
+    grad = np.einsum('i,im,kn,k', electric_field, rot, rot, electric_field)
+    output_grad = np.einsum('ij,abc->ijabc', grad, difference_field)
+    return output_grad
 
 
 def gradient(vf, rot, difference, pol, order):
