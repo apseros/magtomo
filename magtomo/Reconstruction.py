@@ -1,5 +1,5 @@
 import magpack
-from magtomo.Experiment import Experiment
+from magtomo.Experiment import Experiment, get_electric_field
 import numpy as np
 import logging
 import functools
@@ -24,7 +24,7 @@ class Reconstruction(Experiment):
             Stack of projections obtained at the corresponding `rot` value.
         pol : array_like (optional)
             Single polarization used for all projections, stack of polarizations matching the number of projections or
-            stack of pairs of polarizations. Linear polarization represented using values from 0 to 180 (in degrees).
+            stack of polarization pairs. Linear polarization represented using values from 0 to 180 (in degrees).
             Circular left and right polarization represented using complex ±1j.
         iterations : int (optional)
             Number of reconstruction iterations to perform.
@@ -193,9 +193,8 @@ class Reconstruction(Experiment):
             # evaluate gradients
             if np.all(self._pol.imag == 0):
                 grad_method = tensor_gradient
-                if self.magnetization.shape[:2] != (3, 3):
-                    tensor_mag = np.einsum('iabc,jabc->ijabc', self._magnetization, self._magnetization)
-                    self.magnetization = tensor_mag
+                if not self._is_tensor:
+                    self.orientation_to_tensor()
             else:
                 grad_method = gradient
 
@@ -208,18 +207,23 @@ class Reconstruction(Experiment):
             dx = total_gradient / np.linalg.norm(total_gradient)
             self._magnetization += learning_param * dx * self._mask
 
-
     def _prepare(self):
         """Perform checks before initiating reconstruction"""
         if isinstance(self._pol, (int, float, complex)):
             self.pol = np.repeat(self._pol, self._rotations.shape[0])
         elif isinstance(self._pol, np.ndarray) and self._pol.shape[0] != self._rotations.shape[0]:
-            raise ValueError("Number of polarisations must match number of rotations.")
+            raise ValueError("Number of polarizations must match number of rotations.")
         self.magnetization = self._magnetization * self._mask
 
 
+def _compute_difference_field(field, difference, rot, order):
+    """Compute the rotated difference field."""
+    diff_field = difference[..., np.newaxis].repeat(field.shape[-1], axis=-1) / field.shape[-1]
+    return rotate(diff_field, rot, order)
+
+
 def tensor_gradient(tf, rot, difference, pol, order):
-    """Calculates the gradient for a specific orientation.
+    """Calculates the tensor gradient for a specific orientation.
 
     Parameters
     ----------
@@ -230,7 +234,7 @@ def tensor_gradient(tf, rot, difference, pol, order):
     difference : np.ndarray
         The difference between the projection from `vf` and the input.
     pol : np.ndarray
-        The polarisation at which the projection was measured.
+        The polarization at which the projection was measured.
     order : int
         The interpolation order for performing rotations.
 
@@ -239,8 +243,7 @@ def tensor_gradient(tf, rot, difference, pol, order):
     np.ndarray
         The gradient for this combination of inputs.
     """
-    difference_field = difference[..., np.newaxis].repeat(tf.shape[-1], axis=-1) / tf.shape[-1]
-    difference_field = rotate(difference_field, rot, order)
+    difference_field = _compute_difference_field(tf, difference, rot, order)
 
     electric_field = (np.cos(np.deg2rad(pol)), np.sin(np.deg2rad(pol)), 0)
     grad = np.einsum('i,im,kn,k', electric_field, rot, rot, electric_field)
@@ -260,7 +263,7 @@ def gradient(vf, rot, difference, pol, order):
     difference : np.ndarray
         The difference between the projection from `vf` and the input.
     pol : np.ndarray
-        The polarisation at which the projection was measured.
+        The polarization at which the projection was measured.
     order : int
         The interpolation order for performing rotations.
 
@@ -269,20 +272,17 @@ def gradient(vf, rot, difference, pol, order):
     np.ndarray
         The gradient for this combination of inputs.
     """
-    difference_field = difference[..., np.newaxis].repeat(vf.shape[-1], axis=-1) / vf.shape[-1]
-    difference_field = rotate(difference_field, rot, order)
-
     if isinstance(pol, np.ndarray) and len(pol) == 2:
         return gradient(vf, rot, difference, pol[0], order) - gradient(vf, rot, difference, pol[1], order)
     elif isinstance(pol, np.ndarray):
-        raise ValueError("Polarisations for dichroic input must be in pairs.")
+        raise ValueError("Polarizations for dichroic input must be in pairs.")
 
-    if isinstance(pol, complex) and pol.imag != 0:
-        pol = pol.imag
-        grad_x, grad_y, grad_z = rot[2] * pol
+    difference_field = _compute_difference_field(vf, difference, rot, order)
+
+    electric_field = get_electric_field(pol)
+    if electric_field[2] != 0:
+        grad_x, grad_y, grad_z = rot[2] * electric_field[2]
     else:
-        pol = pol.real if isinstance(pol, complex) else pol
-        electric_field = (np.cos(np.deg2rad(pol)), np.sin(np.deg2rad(pol)), 0)
         grad_x, grad_y, grad_z = np.einsum('ij,lk,jabc,i,l->kabc', rot, rot, vf, electric_field,
                                            electric_field) * 4
     grad_x = np.multiply(grad_x, difference_field)

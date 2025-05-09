@@ -26,9 +26,10 @@ def radon(image, thetas=None, order=1):
     """
     thetas = np.asarray(thetas)
 
-    # first index is the number of angles
+    # the first index is the number of angles
     sinogram = np.zeros((thetas.shape[0], *image.shape[:-1]))
     for (ii, theta) in enumerate(thetas):
+        # if angles are provided instead of rotation matrices, convert theta array to rotation matrix array
         if not isinstance(theta, np.ndarray):
             theta = rtn.rot(theta) if image.ndim == 2 else rtn.roty(theta)
         sinogram[ii, ...] = rtn.rotate_scalar_field(image, theta, order=order).sum(axis=-1)
@@ -46,7 +47,7 @@ def _get_fourier_filter(size, filter_name):
     if filter_name == "ramp":
         pass
     elif filter_name == "shepp-logan":
-        # Start from first element to avoid divide by zero
+        # Start from the first element to avoid dividing by zero
         omega = np.pi * np.fft.fftfreq(size)[1:]
         fourier_filter[1:] *= np.sin(omega) / omega
     elif filter_name == "cosine":
@@ -74,6 +75,7 @@ def inv_radon(radon_image, theta=None, filter_name="ramp"):
         Angles to calculate the radon transform.
     filter_name : str (optional)
         The name of the filter to use.
+
     Returns
     -------
     np.ndarray

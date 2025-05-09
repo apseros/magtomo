@@ -15,7 +15,7 @@ sys.path.insert(0, basedir)
 project = 'magtomo'
 copyright = '2025, Andreas Apseros'
 author = 'Andreas Apseros'
-release = '0.1.0'
+release = '0.1.1'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

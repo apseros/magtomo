@@ -9,8 +9,9 @@ from importlib import resources
 from magtomo.radon import radon, inv_radon
 from magpack import vectorop, structures, io
 
+
 def vector_tomo(angles, tilts, kind='CD', it=10, learning=30):
-    """Examples of vector and orientation tomography.
+    """ Examples of vector and orientation tomography.
 
     Parameters
     ----------
@@ -48,11 +49,10 @@ def vector_tomo(angles, tilts, kind='CD', it=10, learning=30):
     exp.plot_sinogram(cmap=cmap)
     # these projections will be used to attempt a reconstruction
     projections = exp.sinogram
-    # mask the sample for faster convergence (can also be derived from a scalar reconstruction)
 
-    # make an initial guess for the structure, LD is best with random initial conditions, CD with zero
+    # provide an initial guess for the structure, LD is best with random initial conditions, CD with zero
     initial_guess = np.ones_like(struct) / np.sqrt(3)
-    # initialize reconstruction class and perform reconstruction
+    # initialize a reconstruction class and perform reconstruction
     recons = Reconstruction(initial_guess, rotations=rot, projections=projections, pol=pol, iterations=it,
                             mask=mask, learning_parameter=learning)
     recons.reconstruct()
@@ -89,12 +89,12 @@ def _get_mask(shape):
 
 
 def _get_structure():
-    """Returns an example magnetization vector field from ThreeDViewer package."""
+    """Returns an example magnetization vector field from the ThreeDViewer package."""
     data_path_resource = resources.files(ThreeDViewer.data) / 'cylinder.ovf'
     with data_path_resource as resource:
         data = io.load_ovf(resource).magnetization
 
-    # make y out-of-plane to match coordinate system
+    # make y out-of-plane to match the tomography coordinate system
     data = np.array(data[[1, 2, 0]].transpose((0, 2, 3, 1)))
     # mask to leave room for tilting
     return data * _get_mask(data.shape)
